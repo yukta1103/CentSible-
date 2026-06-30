@@ -100,11 +100,11 @@ def suggest_savings(dummy: str = "") -> dict:
         for t in transactions:
             by_category[t.category] = by_category.get(t.category, 0) + t.amount
 
-        # Flag categories that are more than 30% of total spend
+        # Flag categories that are more than 15% of total spend
         suggestions = []
         for category, amount in by_category.items():
             percent = (amount / total_spent * 100) if total_spent > 0 else 0
-            if percent > 30 and category.lower() not in ["rent"]:
+            if percent > 15 and category.lower() not in ["rent"]:
                 suggestions.append({
                     "category": category,
                     "amount_spent": round(amount, 2),

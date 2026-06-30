@@ -8,14 +8,15 @@ import operator
 
 from tools import TOOLS
 
-# ─── LLM Setup ────────────────────────────────────────────
+from langchain_groq import ChatGroq
+
 def get_llm():
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY not set in environment variables.")
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=api_key,
+        raise ValueError("GROQ_API_KEY not set in environment variables.")
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        groq_api_key=api_key,
         temperature=0.4,
     )
 
@@ -24,7 +25,8 @@ class AgentState(TypedDict):
     messages: Annotated[list, operator.add]
 
 # ─── System Prompt ────────────────────────────────────────
-SYSTEM_PROMPT = """You are CentSible, a friendly and smart AI financial coach for students.
+
+SYSTEM_PROMPT = """You are CentSible, a friendly but brutally honest AI financial coach for students.
 
 You have access to the following tools:
 - analyze_spending: see the user's full spending breakdown
@@ -33,7 +35,9 @@ You have access to the following tools:
 - can_i_afford: check if they can afford a specific purchase
 
 Your personality:
-- Warm, encouraging, and non-judgmental
+- Sweet and caring, but never sugarcoat the truth
+- If someone is overspending, tell them clearly with exact numbers
+- If they can't afford something, say so directly — don't soften it
 - Concise — never give walls of text
 - Always back advice with real numbers from the tools
 - Use the user's currency symbol when mentioning amounts
@@ -45,7 +49,7 @@ When a user asks something:
 - If they ask "can I afford X", call can_i_afford with the amount
 - If it's general financial advice, answer directly without tools
 
-Always end responses with a short encouraging line. 🎯
+Be like a best friend who's also a financial advisor — honest enough to tell you when you're being dumb with money, but kind enough that you don't feel attacked. 💸
 """
 
 # ─── Nodes ────────────────────────────────────────────────
