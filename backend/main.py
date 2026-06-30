@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List
+from dotenv import load_dotenv
+load_dotenv()
 
 from database import get_db, init_db, Budget, Transaction
 from schemas import (
@@ -124,4 +126,6 @@ def chat_endpoint(request: ChatRequest):
         response = agent_chat(request.message)
         return ChatResponse(response=response)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
