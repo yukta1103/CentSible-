@@ -6,13 +6,14 @@ const SUGGESTED_PROMPTS = [
   "Will I run out of money before the end of the month?",
   "Can I afford a $50 dinner this weekend?",
   "Where can I cut back?",
+  "I spent $12 on coffee at Starbucks today",
 ];
 
-export default function Chat({ API }) {
+export default function Chat({ API, budget }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Hey! 👋 I'm CentSible, your AI financial coach. Ask me anything about your spending, budget, or savings — I've got your back! 💰",
+      content: "Hey! 👋 I'm CentSible, your AI financial coach. Ask me anything about your spending, or just tell me what you spent — like 'spent $12 on coffee at Starbucks' and I'll log it for you! 💰",
     },
   ]);
   const [input, setInput] = useState("");
@@ -22,6 +23,16 @@ export default function Chat({ API }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const logTransaction = async (tx) => {
+    try {
+      await fetch(`${API}/api/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tx),
+      });
+    } catch {}
+  };
 
   const sendMessage = async (text) => {
     const message = text || input.trim();
@@ -38,10 +49,28 @@ export default function Chat({ API }) {
         body: JSON.stringify({ message }),
       });
       const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.response || "Sorry, I couldn't process that." },
-      ]);
+
+      // Check if agent logged a transaction
+      if (data.transaction_logged) {
+        const tx = data.transaction_logged;
+        await logTransaction(tx);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.response,
+          },
+          {
+            role: "assistant",
+            content: `✅ Logged: **${tx.merchant}** — $${tx.amount} (${tx.category})`,
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.response || "Sorry, I couldn't process that." },
+        ]);
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -96,7 +125,7 @@ export default function Chat({ API }) {
       <div className="chat-input-row">
         <input
           className="chat-input"
-          placeholder="Ask me anything about your finances..."
+          placeholder="Ask me anything, or say 'spent $20 at Walmart'..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !loading && sendMessage()}

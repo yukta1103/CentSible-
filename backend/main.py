@@ -120,11 +120,132 @@ def get_summary(db: Session = Depends(get_db)):
     )
 
 # ─── Chat ─────────────────────────────────────────────────
-@app.post("/api/chat", response_model=ChatResponse)
-def chat_endpoint(request: ChatRequest):
+# @app.post("/api/chat", response_model=ChatResponse)
+# def chat_endpoint(request: ChatRequest):
+#     try:
+#         response = agent_chat(request.message)
+#         return ChatResponse(response=response)
+#     except Exception as e:
+#         import traceback
+#         traceback.print_exc()
+#         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat", response_model=None)
+def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     try:
+        # First check if this is a "log transaction" message
+        import re
+        msg = request.message.lower()
+        
+        # Simple pattern: "spent $X on Y" or "paid $X at Y" or "bought Y for $X"
+        amount_match = re.search(r'\$?(\d+(?:\.\d{1,2})?)', request.message)
+        is_logging = any(word in msg for word in [
+            "spent", "paid", "bought", "purchased", "ordered", "got"
+        ])
+
+        if is_logging and amount_match:
+            # Ask agent to parse and respond
+            response = agent_chat(request.message + 
+                "\n[If this is a spending log, extract: merchant name, amount, and best matching category from: Rent, Groceries, Transport, Eating Out, Entertainment, Shopping, Health, Other. Reply normally AND include at the very end a JSON block like: TRANSACTION_JSON:{\"merchant\":\"...\",\"amount\":0.0,\"category\":\"...\"}]"
+            )
+            
+            # Try to extract transaction JSON from response
+            import json
+            tx_match = re.search(r'TRANSACTION_JSON:(\{.*?\})', response, re.DOTALL)
+            if tx_match:
+                try:
+                    tx_data = json.loads(tx_match.group(1))
+                    tx_data["date"] = datetime.utcnow().strftime("%Y-%m-%d")
+                    
+                    # Save to DB
+                    transaction = Transaction(
+                        merchant=tx_data.get("merchant", "Unknown"),
+                        amount=float(tx_data.get("amount", 0)),
+                        category=tx_data.get("category", "Other"),
+                        date=tx_data["date"],
+                    )
+                    db.add(transaction)
+                    db.commit()
+
+                    # Clean response
+                    clean_response = re.sub(r'TRANSACTION_JSON:\{.*?\}', '', response, flags=re.DOTALL).strip()
+                    return {
+                        "response": clean_response,
+                        "transaction_logged": tx_data
+                    }
+                except:
+                    pass
+
+        # Normal chat
         response = agent_chat(request.message)
-        return ChatResponse(response=response)
+        return {"response": response}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+    import base64
+from fastapi import UploadFile, File
+
+@app.post("/api/scan-receipt")
+async def scan_receipt(file: UploadFile = File(...)):
+    try:
+        # Read and encode image
+        contents = await file.read()
+        base64_image = base64.b64encode(contents).decode("utf-8")
+        media_type = file.content_type or "image/jpeg"
+
+        # Use Groq vision
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{base64_image}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": """Extract transaction details from this receipt. 
+Reply ONLY with a valid JSON object, nothing else:
+{
+  "merchant": "store name here",
+  "amount": 0.00,
+  "category": "one of: Rent, Groceries, Transport, Eating Out, Entertainment, Shopping, Health, Other",
+  "date": "YYYY-MM-DD or empty string if not found"
+}"""
+                        }
+                    ]
+                }
+            ],
+            max_tokens=200,
+        )
+
+        raw = response.choices[0].message.content.strip()
+        
+        # Clean and parse JSON
+        import re, json
+        json_match = re.search(r'\{.*?\}', raw, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON found in response")
+        
+        data = json.loads(json_match.group())
+        
+        # Set today's date if not found
+        if not data.get("date"):
+            data["date"] = datetime.utcnow().strftime("%Y-%m-%d")
+
+        return data
+
     except Exception as e:
         import traceback
         traceback.print_exc()
