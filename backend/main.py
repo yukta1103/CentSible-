@@ -1,4 +1,5 @@
 import os
+import base64
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -250,3 +251,10 @@ Reply ONLY with a valid JSON object, nothing else:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.delete("/api/transactions")
+def clear_all_transactions(db: Session = Depends(get_db)):
+    db.query(Transaction).delete()
+    db.commit()
+    return {"message": "All transactions cleared."}

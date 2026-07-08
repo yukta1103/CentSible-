@@ -308,7 +308,6 @@ export default function Transactions({ API, budget }) {
       <div className="section-header">
         <h3>Transactions</h3>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {/* Receipt scan button */}
           <label className="btn-secondary small" style={{ cursor: "pointer", padding: "0.4rem 1rem", fontSize: "0.85rem" }}>
             {scanning ? "Scanning... 🔍" : "📸 Scan Receipt"}
             <input
@@ -319,6 +318,15 @@ export default function Transactions({ API, budget }) {
               disabled={scanning}
             />
           </label>
+          {transactions.length > 0 && (
+            <button className="btn-delete-all" onClick={async () => {
+              if (!window.confirm("Clear all transactions?")) return;
+              await fetch(`${API}/api/transactions`, { method: "DELETE" });
+              setTransactions([]);
+            }}>
+              🗑️ Clear All
+            </button>
+          )}
           <button className="btn-primary small" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Cancel" : "+ Add Transaction"}
           </button>

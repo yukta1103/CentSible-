@@ -503,6 +503,19 @@ body {
 .btn-send:hover { background: #6a5eee; }
 .btn-send:disabled { background: #2a2a35; color: #555; cursor: not-allowed; }
 
+.btn-delete-all {
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid #ef444466;
+  color: #ef4444;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete-all:hover { background: #ef444418; }
+
 /* ── Misc ── */
 .loading { color: #666; font-size: 0.9rem; padding: 2rem 0; text-align: center; }
 .error { color: #ef4444; font-size: 0.82rem; margin-bottom: 0.75rem; }
