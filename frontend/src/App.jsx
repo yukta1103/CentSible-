@@ -49,6 +49,16 @@ export default function App() {
           <span className="income-badge">
             Budget: {budget.monthly_income.toLocaleString()} {budget.currency}
           </span>
+          <button
+            className="btn-reset"
+            onClick={async () => {
+              if (!window.confirm("Reset everything and start over?")) return;
+              await fetch(`${API}/api/budget`, { method: "DELETE" });
+              window.location.reload();
+            }}
+          >
+            ↺ Reset
+          </button>
         </div>
       </header>
 

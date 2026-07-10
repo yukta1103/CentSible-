@@ -258,3 +258,80 @@ def clear_all_transactions(db: Session = Depends(get_db)):
     db.query(Transaction).delete()
     db.commit()
     return {"message": "All transactions cleared."}
+
+@app.post("/api/budget/suggest")
+def suggest_budget(data: dict, db: Session = Depends(get_db)):
+    try:
+        income = data.get("monthly_income", 1000)
+        city = data.get("city", "")
+        currency = data.get("currency", "USD")
+
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""You are a financial advisor for college students.
+A student has a monthly income/budget of {income} {currency} and lives in {city if city else "a typical US city"}.
+
+Suggest a realistic monthly budget allocation for a college student.
+Reply ONLY with a valid JSON object, nothing else, no explanation:
+{{
+  "Rent": 0,
+  "Groceries": 0,
+  "Eating Out": 0,
+  "Transport": 0,
+  "Entertainment": 0,
+  "Health": 0,
+  "Shopping": 0,
+  "Savings": 0,
+  "Other": 0
+}}
+
+Rules:
+- All values must be realistic dollar amounts (not percentages)
+- All values must add up to exactly {income}
+- Rent should reflect actual costs in {city if city else "a typical US city"}
+- Savings should be at least 5% of income
+- Be realistic for a college student lifestyle
+"""
+                }
+            ],
+            max_tokens=300,
+        )
+
+        raw = response.choices[0].message.content.strip()
+
+        import re, json
+        json_match = re.search(r'\{.*?\}', raw, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON found")
+
+        allocation = json.loads(json_match.group())
+
+        # Calculate percentages
+        result = []
+        for category, amount in allocation.items():
+            result.append({
+                "category": category,
+                "amount": round(float(amount), 2),
+                "percent": round(float(amount) / income * 100, 1)
+            })
+
+        return {"allocations": result, "total": income, "currency": currency}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.delete("/api/budget")
+def reset_budget(db: Session = Depends(get_db)):
+    db.query(Transaction).delete()
+    db.query(Budget).delete()
+    db.commit()
+    return {"message": "Budget and transactions reset."}
