@@ -152,4 +152,30 @@ def can_i_afford(amount: float) -> dict:
     finally:
         db.close()
 
-TOOLS = [analyze_spending, forecast_budget, suggest_savings, can_i_afford]
+@tool
+def find_cheaper_alternatives(category: str) -> dict:
+    """Find cheaper alternatives for a spending category based on the user's location and spending habits."""
+    db = get_db_session()
+    try:
+        budget = db.query(Budget).order_by(Budget.id.desc()).first()
+        if not budget:
+            return {"error": "No budget set up yet."}
+
+        transactions = db.query(Transaction).filter(
+            Transaction.category == category
+        ).all()
+
+        total_spent = sum(t.amount for t in transactions)
+        avg_transaction = total_spent / len(transactions) if transactions else 0
+
+        return {
+            "category": category,
+            "currency": budget.currency,
+            "total_spent_this_month": round(total_spent, 2),
+            "avg_transaction": round(avg_transaction, 2),
+            "num_transactions": len(transactions),
+        }
+    finally:
+        db.close()
+        
+TOOLS = [analyze_spending, forecast_budget, suggest_savings, can_i_afford, find_cheaper_alternatives]
